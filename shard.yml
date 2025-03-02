@@ -1,0 +1,25 @@
+name: lucky_sse
+version: 0.1.0
+
+authors:
+  - Rémy Marronnier <rmarronnier@gmail.com>
+
+description: |
+  A Server-Sent Events (SSE) shard for the Lucky framework,
+  allowing easy creation of SSE streams in Lucky actions.
+
+crystal: ">= 1.15.1"
+
+license: MIT
+
+dependencies:
+  lucky:
+    github: luckyframework/lucky
+    version: ~> 1.0
+  redis:
+    github: jgaskins/redis
+
+development_dependencies:
+  ameba:
+    github: crystal-ameba/ameba
+    version: ~> 1.0
