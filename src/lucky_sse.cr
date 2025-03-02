@@ -1,11 +1,5 @@
 require "lucky"
 require "redis"
-# Optional Redis support
-# begin
-#   require "redis"
-# rescue
-  # Redis shard is not available, Redis-backed SSE functionality will be disabled
-# end
 
 require "./lucky_sse/**"
 

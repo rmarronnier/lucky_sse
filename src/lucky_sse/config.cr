@@ -7,7 +7,7 @@ module Lucky::SSE
     property cleanup_interval : Int32 = 60 # Seconds
 
     # Redis client instance (if Redis backend is used)
-    getter redis : Redis::PooledClient?
+    getter redis : Redis::Client?
 
     def initialize
       # Check if Redis is available
@@ -23,7 +23,7 @@ module Lucky::SSE
     def setup_redis
       {% if @top_level.has_constant?("Redis") %}
         if @backend_type == BackendType::Redis
-          @redis = Redis::PooledClient.new(url: @redis_url)
+          @redis = Redis::Client.new(URI.parse(@redis_url))
         end
       {% end %}
     end

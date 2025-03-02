@@ -17,20 +17,16 @@ module Lucky::SSE
     end
 
     # Create and return an SSE stream with automatic management
-    def sse_stream(headers : HTTP::Headers? = nil, heartbeat_interval : Int32 = 30, metadata : Hash(String, String) = {} of String => String) : Stream
+    def sse_stream(headers : HTTP::Headers? = nil, heartbeat_interval : Float64 = 30.0, metadata : Hash(String, String) = {} of String => String) : Stream
       # Create the stream with metadata
       stream = Stream.new(context, headers, metadata)
 
       # Register with client manager
       ClientManager.instance.register(stream)
 
-      # Handle client disconnection
-      spawn do
-        context.request.on_close do
-          ClientManager.instance.unregister(stream)
-          stream.close
-        end
-      end
+      # We can't directly detect client disconnections in Crystal HTTP
+      # So we'll rely on error handling to detect disconnections
+      # and the cleanup task to remove disconnected clients
 
       # Set up heartbeat if requested
       if heartbeat_interval > 0
@@ -57,7 +53,8 @@ module Lucky::SSE
         # This will keep the connection open until an exception is raised
         sleep
       rescue SSEDisconnectError
-        # Client disconnected, already cleaned up in the on_close handler
+        # Client disconnected, make sure it's unregistered
+        ClientManager.instance.unregister(stream)
       end
     end
 

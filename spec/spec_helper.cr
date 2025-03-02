@@ -1,53 +1,38 @@
 require "spec"
 require "../src/lucky_sse"
 
-# Mock implementation to help with testing
-module Mocks
-  # Add helper methods to emulate mocking for IO and other objects
-  def self.allow(object)
-    AllowHelper.new(object)
+# Custom IO class for testing that captures output
+class TestIO < IO
+  property buffer = IO::Memory.new
+
+  def read(slice : Bytes) : Int32
+    raise "Not implemented"
   end
 
-  class AllowHelper(T)
-    def initialize(@object : T)
-    end
-
-    def receive(method_name)
-      MethodHelper.new(@object, method_name.to_s)
-    end
+  def write(slice : Bytes) : Nil
+    @buffer.write(slice)
   end
 
-  class MethodHelper(T)
-    def initialize(@object : T, @method_name : String)
-    end
+  def to_s
+    @buffer.to_s
+  end
 
-    def and_return(&block : -> U) forall U
-      # This is a simplistic mock implementation
-      # In a real environment, you'd use a proper mocking library
-      {% for method in T.methods %}
-        {% if method.name.stringify == "@method_name" %}
-          def @object.{{method.name}}({% for arg, index in method.args %}{% if index > 0 %}, {% end %}{{arg}}{% end %})
-            yield
-          end
-        {% end %}
-      {% end %}
-    end
+  def clear
+    @buffer = IO::Memory.new
+  end
 
-    def and_raise(exception)
-      # This is a simplistic mock implementation
-      # In a real environment, you'd use a proper mocking library
-      {% for method in T.methods %}
-        {% if method.name.stringify == "@method_name" %}
-          def @object.{{method.name}}({% for arg, index in method.args %}{% if index > 0 %}, {% end %}{{arg}}{% end %})
-            raise exception
-          end
-        {% end %}
-      {% end %}
-    end
+  def flush
+    # No-op for testing
   end
 end
 
-include Mocks
+# Helper method to build a context with a test IO
+def build_test_context
+  request = HTTP::Request.new("GET", "/")
+  io = TestIO.new
+  response = HTTP::Server::Response.new(io)
+  HTTP::Server::Context.new(request, response)
+end
 
 # Make to_s available on IO::Memory for spec verification
 class IO::Memory
@@ -61,5 +46,30 @@ class HTTP::Server::Response
   # Allow access to the IO for testing
   def output
     @io
+  end
+end
+
+# Stub MockStreams for testing that raise specified errors
+class MockStream < Lucky::SSE::Stream
+  property should_fail = false
+
+  def initialize(context)
+    super(context)
+  end
+
+  def send(data, event = nil, id = nil, retry_ms = nil)
+    if should_fail
+      raise Lucky::SSE::SSEDisconnectError.new("Test failure")
+    else
+      super
+    end
+  end
+
+  def heartbeat
+    if should_fail
+      raise Lucky::SSE::SSEDisconnectError.new("Test failure")
+    else
+      super
+    end
   end
 end

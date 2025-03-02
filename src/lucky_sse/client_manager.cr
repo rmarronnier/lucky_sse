@@ -10,22 +10,22 @@ module Lucky::SSE
 
     # Initialize the backend
     def initialize
-      case Lucky::SSE.config.backend_type
-      when BackendType::InMemory
+      # case Lucky::SSE.config.backend_type
+      # when BackendType::InMemory
         @backend = InMemoryBackend.new
-      when BackendType::Redis
-        {% if @top_level.has_constant?("Redis") %}
-          if redis = Lucky::SSE.config.redis
-            @backend = RedisBackend.new(redis, Lucky::SSE.config.redis_prefix)
-          else
-            # Fall back to in-memory if Redis client isn't initialized
-            @backend = InMemoryBackend.new
-          end
-        {% else %}
-          # Redis is not available, fall back to in-memory
-          @backend = InMemoryBackend.new
-        {% end %}
-      end
+      # when BackendType::Redis
+      #   {% if @top_level.has_constant?("Redis") %}
+      #     if redis = Lucky::SSE.config.redis
+      #       @backend = RedisBackend.new(redis, Lucky::SSE.config.redis_prefix)
+      #     else
+      #       # Fall back to in-memory if Redis client isn't initialized
+      #       @backend = InMemoryBackend.new
+      #     end
+      #   {% else %}
+      #     # Redis is not available, fall back to in-memory
+      #     @backend = InMemoryBackend.new
+      #   {% end %}
+      # end
 
       # Start the cleanup task
       ensure_cleanup_task

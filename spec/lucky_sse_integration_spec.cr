@@ -1,14 +1,15 @@
 require "./spec_helper"
 
 # Mock Lucky action for testing
-abstract class MockAction
+class MockAction
   include Lucky::SSE::Handler
 
   getter context : HTTP::Server::Context
 
   def initialize
     request = HTTP::Request.new("GET", "/")
-    response = HTTP::Server::Response.new(IO::Memory.new)
+    io = TestIO.new
+    response = HTTP::Server::Response.new(io)
     @context = HTTP::Server::Context.new(request, response)
   end
 
@@ -83,19 +84,16 @@ describe "Lucky::SSE::Handler integration" do
       action = MockAction.new
 
       # Create a stream with a very short heartbeat interval
-      # In a real test, we'd use timecop or similar to avoid actual waiting
       stream = action.sse_stream(heartbeat_interval: 0.01)
-
-      # Capture output
-      output = IO::Memory.new
-      allow(action.context.response.output).to receive(:print).and_return { |message| output << message }
-      allow(action.context.response.output).to receive(:flush)
 
       # Wait for at least one heartbeat
       sleep 0.02
 
+      # Get output from our TestIO
+      output_str = action.context.response.output.as(TestIO).to_s
+
       # Verify heartbeat was sent
-      output.to_s.should contain(": heartbeat")
+      output_str.should contain(": heartbeat")
 
       # Clean up
       Lucky::SSE::Handler.cleanup_disconnected_clients
@@ -110,22 +108,18 @@ describe "Lucky::SSE::Handler integration" do
       stream1 = action1.sse_stream
       stream2 = action2.sse_stream
 
-      # Capture outputs
-      output1 = IO::Memory.new
-      output2 = IO::Memory.new
-      allow(action1.context.response.output).to receive(:print).and_return { |message| output1 << message }
-      allow(action2.context.response.output).to receive(:print).and_return { |message| output2 << message }
-      allow(action1.context.response.output).to receive(:flush)
-      allow(action2.context.response.output).to receive(:flush)
-
       # Broadcast an event
       Lucky::SSE::Handler.broadcast_event("test_event", "hello world")
 
+      # Get outputs from our TestIOs
+      output1 = action1.context.response.output.as(TestIO).to_s
+      output2 = action2.context.response.output.as(TestIO).to_s
+
       # Verify both received it
-      output1.to_s.should contain("event: test_event")
-      output1.to_s.should contain("data: hello world")
-      output2.to_s.should contain("event: test_event")
-      output2.to_s.should contain("data: hello world")
+      output1.should contain("event: test_event")
+      output1.should contain("data: hello world")
+      output2.should contain("event: test_event")
+      output2.should contain("data: hello world")
 
       # Clean up
       Lucky::SSE::Handler.cleanup_disconnected_clients
@@ -138,14 +132,6 @@ describe "Lucky::SSE::Handler integration" do
       stream1 = action1.sse_stream(metadata: {"channel" => "news"})
       stream2 = action2.sse_stream(metadata: {"channel" => "sports"})
 
-      # Capture outputs
-      output1 = IO::Memory.new
-      output2 = IO::Memory.new
-      allow(action1.context.response.output).to receive(:print).and_return { |message| output1 << message }
-      allow(action2.context.response.output).to receive(:print).and_return { |message| output2 << message }
-      allow(action1.context.response.output).to receive(:flush)
-      allow(action2.context.response.output).to receive(:flush)
-
       # Broadcast only to news channel
       Lucky::SSE::Handler.broadcast_event(
         "update",
@@ -153,10 +139,14 @@ describe "Lucky::SSE::Handler integration" do
         filter: {"channel" => "news"}
       )
 
+      # Get outputs from our TestIOs
+      output1 = action1.context.response.output.as(TestIO).to_s
+      output2 = action2.context.response.output.as(TestIO).to_s
+
       # Verify only news channel received it
-      output1.to_s.should contain("event: update")
-      output1.to_s.should contain("data: breaking news")
-      output2.to_s.should be_empty
+      output1.should contain("event: update")
+      output1.should contain("data: breaking news")
+      output2.should be_empty
 
       # Clean up
       Lucky::SSE::Handler.cleanup_disconnected_clients
