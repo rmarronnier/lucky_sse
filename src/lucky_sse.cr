@@ -29,13 +29,11 @@ module Lucky::SSE
   def self.publish(topic : String, event : String, data, meta : Hash(String, String)? = nil, id : String? = nil, occurred_at : Time = Time.utc) : String
     envelope_id = id || UUID.random.to_s
 
-    envelope_meta = {
-      "topic"    => topic,
-      "producer" => settings.default_producer,
-      "trace_id" => envelope_id,
-    }
-
-    meta.try(&.each { |key, value| envelope_meta[key] = value })
+    envelope_meta = meta ? meta.dup : Hash(String, String).new
+    # Keep reserved metadata aligned with actual envelope semantics.
+    envelope_meta["topic"] = topic
+    envelope_meta["producer"] = settings.default_producer
+    envelope_meta["trace_id"] = envelope_id
 
     payload = {
       id:          envelope_id,

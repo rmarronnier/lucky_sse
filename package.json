@@ -1,0 +1,8 @@
+{
+  "name": "lucky_sse",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:js": "bun test ./js/client.test.mjs"
+  }
+}

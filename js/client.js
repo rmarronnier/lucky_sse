@@ -98,8 +98,8 @@ export const createLuckySSE = (config = {}) => {
     window.addEventListener("beforeunload", () => {
       closeAll();
     });
-    window.addEventListener("pageshow", (event) => {
-      if (event.persisted) reconnectAll();
+    window.addEventListener("pageshow", () => {
+      if (suspendedByPageLifecycle) reconnectAll();
     });
   }
 
@@ -120,6 +120,10 @@ export const createLuckySSE = (config = {}) => {
         eventHandlers: new Map(),
       };
       streams.set(streamKey, entry);
+    } else if (entry.url !== streamUrl) {
+      throw new Error(
+        `[lucky_sse] stream key "${streamKey}" already maps to "${entry.url}", got "${streamUrl}"`,
+      );
     }
 
     attachSource(entry);

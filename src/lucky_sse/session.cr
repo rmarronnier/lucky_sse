@@ -9,40 +9,43 @@ class Lucky::SSE::Session
   end
 
   def run : Nil
-    prepare_response
-
-    stop_heartbeat : Channel(Nil)? = nil
-    subscription = @adapter.subscribe(@stream.topic) do |payload|
-      parsed = Lucky::SSE::Parser.parse(payload)
-      next unless @stream.accepts?(parsed)
-
-      event = Lucky::SSE::Event.new(
-        id: parsed.id,
-        name: parsed.name,
-        data: parsed.data_raw
-      )
-
-      safe_write { Lucky::SSE::Writer.write_event(@response, event) }
-    end
-
+    subscription : Lucky::SSE::Subscription? = nil
     closed = Channel(Nil).new(1)
-    stop_heartbeat = Channel(Nil).new(1)
+    stop_heartbeat : Channel(Nil)? = Channel(Nil).new(1)
     closed_flag = Atomic(Bool).new(false)
 
     signal_closed = -> do
       return if closed_flag.swap(true)
-      closed.send(nil)
+      begin
+        closed.send(nil)
+      rescue
+      end
+      nil
   rescue
+    nil
+    end
+
+    prepare_response
+
+    subscription = @adapter.subscribe(@stream.topic) do |payload|
+      parsed = Lucky::SSE::Parser.parse(payload)
+      next unless @stream.accepts?(parsed)
+
+      begin
+        write_event(parsed.id, parsed.name, parsed.data_raw)
+      rescue
+        signal_closed.call
+      end
     end
 
     spawn do
       begin
         loop do
           select
-          when stop_heartbeat.receive
+          when stop_heartbeat.not_nil!.receive
             break
           when timeout(@heartbeat_interval)
-            safe_write { Lucky::SSE::Writer.write_comment(@response, "ping") }
+            write_comment("ping")
           end
         end
       rescue
@@ -71,12 +74,21 @@ class Lucky::SSE::Session
     @response.status_code = 200
     @response.flush
 
-    safe_write { Lucky::SSE::Writer.write_comment(@response, "connected") }
+    write_comment("connected")
   end
 
-  private def safe_write(&block : -> Nil) : Nil
+  private def write_event(id : String?, name : String, data : String) : Nil
     @write_lock.synchronize do
-      block.call
+      Lucky::SSE::Writer.write_event(
+        @response,
+        Lucky::SSE::Event.new(id: id, name: name, data: data)
+      )
+    end
+  end
+
+  private def write_comment(text : String) : Nil
+    @write_lock.synchronize do
+      Lucky::SSE::Writer.write_comment(@response, text)
     end
   end
 end

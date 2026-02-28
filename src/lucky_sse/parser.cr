@@ -8,16 +8,28 @@ module Lucky::SSE::Parser
 
     if parsed
       if body = parsed.as_h?
-        event_name = body["event"]?.try(&.as_s?) || "message"
-        event_id = body["id"]?.try(&.as_s?)
-        data_json = body["data"]?
-        data_raw = data_json ? data_json.to_json : payload
+        is_envelope = body.has_key?("id") || body.has_key?("event") || body.has_key?("data")
+
+        if is_envelope
+          event_name = body["event"]?.try(&.as_s?) || "message"
+          event_id = body["id"]?.try(&.as_s?)
+          data_json = body["data"]?
+          data_raw = data_json ? data_json.to_json : payload
+          return Lucky::SSE::ParsedEvent.new(
+            id: event_id,
+            name: event_name,
+            data_raw: data_raw,
+            data_json: data_json,
+            envelope_json: parsed
+          )
+        end
+
         return Lucky::SSE::ParsedEvent.new(
-          id: event_id,
-          name: event_name,
-          data_raw: data_raw,
-          data_json: data_json,
-          envelope_json: parsed
+          id: nil,
+          name: "message",
+          data_raw: payload,
+          data_json: parsed,
+          envelope_json: nil
         )
       end
 

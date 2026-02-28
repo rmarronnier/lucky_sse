@@ -1,15 +1,50 @@
 class Lucky::SSE::Adapters::Redis < Lucky::SSE::Adapter
   private class RedisSubscription < Lucky::SSE::Subscription
-    def initialize(@redis : ::Redis::Client)
+    def initialize
       @closed = Atomic(Bool).new(false)
+      @lock = Mutex.new
+      @redis = nil.as(::Redis::Client?)
     end
 
     def close : Nil
       return if @closed.swap(true)
 
+      redis = @lock.synchronize do
+        client = @redis
+        @redis = nil
+        client
+      end
+
       begin
-        @redis.close
+        redis.try(&.close)
       rescue
+      end
+    end
+
+    def closed? : Bool
+      @closed.get
+    end
+
+    def bind(redis : ::Redis::Client) : Nil
+      close_now = false
+      @lock.synchronize do
+        if @closed.get
+          close_now = true
+        else
+          @redis = redis
+        end
+      end
+
+      return unless close_now
+      begin
+        redis.close
+      rescue
+      end
+    end
+
+    def unbind(redis : ::Redis::Client) : Nil
+      @lock.synchronize do
+        @redis = nil if @redis == redis
       end
     end
   end
@@ -28,25 +63,38 @@ class Lucky::SSE::Adapters::Redis < Lucky::SSE::Adapter
   end
 
   def subscribe(topic : String, &block : String -> Nil) : Lucky::SSE::Subscription
-    redis = ::Redis::Client.new(URI.parse(@url))
+    subscription = RedisSubscription.new
 
     spawn do
-      begin
-        redis.subscribe(topic) do |subscription, _connection|
-          subscription.on_message do |_channel, payload|
-            block.call(payload)
-          end
-        end
-      rescue
-        # Normal close path for subscription fibers.
-      ensure
+      backoff = 100.milliseconds
+      max_backoff = 5.seconds
+
+      until subscription.closed?
+        redis = ::Redis::Client.new(URI.parse(@url))
+        subscription.bind(redis)
+
         begin
-          redis.close
+          redis.subscribe(topic) do |listener, _connection|
+            listener.on_message do |_channel, payload|
+              block.call(payload)
+            end
+          end
+          backoff = 100.milliseconds
         rescue
+          break if subscription.closed?
+          sleep(backoff)
+          doubled = backoff * 2
+          backoff = doubled > max_backoff ? max_backoff : doubled
+        ensure
+          subscription.unbind(redis)
+          begin
+            redis.close
+          rescue
+          end
         end
       end
     end
 
-    RedisSubscription.new(redis)
+    subscription
   end
 end
