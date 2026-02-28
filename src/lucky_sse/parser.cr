@@ -8,9 +8,7 @@ module Lucky::SSE::Parser
 
     if parsed
       if body = parsed.as_h?
-        is_envelope = body.has_key?("id") || body.has_key?("event") || body.has_key?("data")
-
-        if is_envelope
+        if envelope_payload?(body)
           event_name = body["event"]?.try(&.as_s?) || "message"
           event_id = body["id"]?.try(&.as_s?)
           data_json = body["data"]?
@@ -49,5 +47,14 @@ module Lucky::SSE::Parser
       data_json: nil,
       envelope_json: nil
     )
+  end
+
+  private def self.envelope_payload?(body : Hash(String, JSON::Any)) : Bool
+    return false unless body["event"]?.try(&.as_s?)
+    return false unless body.has_key?("data")
+
+    # Require at least one envelope-specific field to avoid misclassifying
+    # domain payloads that happen to include {event,data}.
+    body.has_key?("id") || body.has_key?("occurred_at") || body.has_key?("meta")
   end
 end

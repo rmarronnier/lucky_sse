@@ -25,8 +25,20 @@ describe Lucky::SSE::Session do
     end
 
     wait_for_connected_output(io)
-    adapter.publish("orders", {id: "evt-ignore", event: "order.created", data: {"id" => 1}}.to_json)
-    adapter.publish("orders", {id: "evt-1", event: "order.updated", data: {"id" => 1}}.to_json)
+    adapter.publish("orders", {
+      id:          "evt-ignore",
+      event:       "order.created",
+      occurred_at: "2026-02-28T22:00:00Z",
+      meta:        {"topic" => "orders"},
+      data:        {"id" => 1},
+    }.to_json)
+    adapter.publish("orders", {
+      id:          "evt-1",
+      event:       "order.updated",
+      occurred_at: "2026-02-28T22:00:00Z",
+      meta:        {"topic" => "orders"},
+      data:        {"id" => 1},
+    }.to_json)
 
     wait_until(1.second) { io.to_s.includes?("event: order.updated\n") }.should be_true
 

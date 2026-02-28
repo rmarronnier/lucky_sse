@@ -1,6 +1,15 @@
 class Lucky::SSE::Adapters::Memory < Lucky::SSE::Adapter
   @listeners = Hash(String, Set(Channel(String))).new { |hash, key| hash[key] = Set(Channel(String)).new }
   @lock = Mutex.new
+  @dropped_messages = Atomic(Int64).new(0_i64)
+
+  getter channel_capacity : Int32
+
+  def initialize(@channel_capacity : Int32 = 128)
+    if @channel_capacity < 1
+      @channel_capacity = 1
+    end
+  end
 
   private class MemorySubscription < Lucky::SSE::Subscription
     def initialize(@topic : String, @channel : Channel(String), @adapter : Lucky::SSE::Adapters::Memory)
@@ -23,14 +32,18 @@ class Lucky::SSE::Adapters::Memory < Lucky::SSE::Adapter
     end
     listeners.each do |channel|
       begin
-        channel.send(payload)
+        select
+        when channel.send(payload)
+        else
+          @dropped_messages.add(1_i64)
+        end
       rescue Channel::ClosedError
       end
     end
   end
 
   def subscribe(topic : String, &block : String -> Nil) : Lucky::SSE::Subscription
-    channel = Channel(String).new(128)
+    channel = Channel(String).new(@channel_capacity)
     @lock.synchronize { @listeners[topic].add(channel) }
 
     subscription = MemorySubscription.new(topic, channel, self)
@@ -60,5 +73,9 @@ class Lucky::SSE::Adapters::Memory < Lucky::SSE::Adapter
       listeners.delete(channel)
       @listeners.delete(topic) if listeners.empty?
     end
+  end
+
+  def dropped_messages : Int64
+    @dropped_messages.get
   end
 end

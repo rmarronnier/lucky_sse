@@ -76,7 +76,12 @@ class Lucky::SSE::Adapters::Redis < Lucky::SSE::Adapter
         begin
           redis.subscribe(topic) do |listener, _connection|
             listener.on_message do |_channel, payload|
-              block.call(payload)
+              begin
+                block.call(payload)
+              rescue
+                # Keep subscriber callback failures isolated so the
+                # subscription connection stays healthy.
+              end
             end
           end
           backoff = 100.milliseconds

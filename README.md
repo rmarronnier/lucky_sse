@@ -68,6 +68,16 @@ Lucky::SSE.publish_raw("orders", "log.message", "plain text payload")
 ```
 
 If `raw` is valid JSON it is used as JSON data; otherwise it is sent as a string.
+`publish_raw` still sends the standard Lucky::SSE envelope.
+
+### `Lucky::SSE.publish_unwrapped`
+
+```crystal
+Lucky::SSE.publish_unwrapped("orders.raw", %({"native":"payload"}))
+Lucky::SSE.publish_unwrapped("orders.raw", "plain text payload")
+```
+
+This bypasses envelope wrapping and publishes payload bytes directly.
 
 ### Envelope format
 
@@ -108,6 +118,8 @@ stream = Lucky::SSE::Stream.new("orders")
 
 - `allow_events` limits accepted event names.
 - `filter` adds custom predicates over parsed events.
+- Envelope parsing is strict: payloads are treated as envelope only when they
+  include `event` + `data` and at least one envelope marker (`id`, `occurred_at`, or `meta`).
 
 ## Session API
 
@@ -143,6 +155,9 @@ Characteristics:
 - In-process only
 - Per-subscriber channels
 - Callback failures are isolated from publisher flow
+- Backpressure protection: publishers do not block on full subscriber channels;
+  messages are dropped for overloaded subscribers.
+- Observe dropped count with `adapter.dropped_messages`.
 
 ### Redis adapter
 
@@ -153,6 +168,7 @@ Characteristics:
 - Uses Redis pub/sub
 - Reconnect loop with bounded backoff on subscription errors
 - `close` is idempotent and closes the active Redis connection
+- Subscriber callback failures are isolated and do not tear down subscriptions
 
 ## Browser Client (`js/client.js`)
 

@@ -87,4 +87,21 @@ describe Lucky::SSE do
       settings.adapter = previous_adapter
     end
   end
+
+  it "publish_unwrapped sends payload directly without envelope wrapping" do
+    settings = Lucky::SSE.settings
+    previous_adapter = settings.adapter
+    adapter = CaptureAdapter.new
+
+    begin
+      settings.adapter = adapter
+      Lucky::SSE.publish_unwrapped("raw_topic", %({"native":"payload"}))
+
+      adapter.messages.size.should eq(1)
+      adapter.messages.first[:topic].should eq("raw_topic")
+      adapter.messages.first[:payload].should eq(%({"native":"payload"}))
+    ensure
+      settings.adapter = previous_adapter
+    end
+  end
 end

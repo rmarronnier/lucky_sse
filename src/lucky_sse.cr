@@ -47,6 +47,11 @@ module Lucky::SSE
     envelope_id
   end
 
+  # Publishes a raw payload as the envelope `data` field.
+  # - If `raw` is valid JSON, the parsed JSON is used.
+  # - Otherwise `raw` is sent as a JSON string.
+  #
+  # This preserves the standard Lucky::SSE envelope and event name.
   def self.publish_raw(topic : String, event : String, raw : String, meta : Hash(String, String)? = nil, id : String? = nil, occurred_at : Time = Time.utc) : String
     parsed_data = begin
       JSON.parse(raw)
@@ -55,5 +60,11 @@ module Lucky::SSE
     end
 
     publish(topic, event, parsed_data, meta: meta, id: id, occurred_at: occurred_at)
+  end
+
+  # Publishes an unwrapped payload directly to the adapter topic.
+  # Use this when the application fully owns transport payload shape.
+  def self.publish_unwrapped(topic : String, payload : String) : Nil
+    settings.adapter.publish(topic, payload)
   end
 end
