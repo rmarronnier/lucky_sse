@@ -1,0 +1,11 @@
+name: lucky_sse
+version: 0.1.0
+crystal: '>= 1.19.1'
+license: MIT
+
+authors:
+  - Remy Marronnier
+
+dependencies:
+  redis:
+    github: jgaskins/redis
